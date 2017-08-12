@@ -13,20 +13,6 @@ class Command(metaclass=ABCMeta):
 
     @classmethod
     @abstractmethod
-    def parser_name(cls) -> str:
-        """
-        return unique command parser name
-        """
-
-    @classmethod
-    @abstractmethod
-    def help_line(cls) -> str:
-        """
-        return command description
-        """
-
-    @classmethod
-    @abstractmethod
     def parser_kwargs(cls) -> dict:
         """
         return arguments for command parser
@@ -44,60 +30,29 @@ class Command(metaclass=ABCMeta):
         execute this command
         """
 
-class ChildCommand(Command, metaclass=ABCMeta):
-    @classmethod
-    @abstractmethod
-    def requires_parent_arguments(cls) -> bool:
-        """
-        indicates if this subcommand needs arguments from the parent
-        """
-
 class ParentCommand(Command, metaclass=ABCMeta):
     @classmethod
     @abstractmethod
-    def command_name(cls) -> str:
+    def subcommands(cls) -> List[Command]:
         """
-        the name of the parser command
-        """
-
-    def execute(self, command_args: ap.Namespace):
-        if hasattr(command_args, 'sub_command') and command_args.sub_command:
-            return command_args.sub_command().execute(command_args)
-        else:
-            parser = getattr(command_args, self.parser_name())
-            parser.print_help()
-
-    @classmethod
-    @abstractmethod
-    def parent_arguments(cls) -> dict:
-        """
-        return dict of arguments to be considered by parent parser
+        the subcommands of this command
         """
 
     @classmethod
-    @abstractmethod
-    def get_subparsers(cls) -> List[Command]:
-        """
-        return list of subparsers for this command
-        """
-
-    @classmethod
-    def configure_parser_and_subparsers(cls, parser: ap.ArgumentParser, subparsers):
-        parsers = {cls.parser_name(): parser}
-        parser.set_defaults(**parsers)
-
-        for subcommand in cls.get_subparsers():
-            subparser = subparsers.add_parser(
-                subcommand.name(), help=subcommand.help_line()
-            )
-            if subcommand.requires_parent_arguments():
-                subparser.add_argument(**cls.parent_arguments())
-            subcommand.configure(subparser)
-            subparser.set_defaults(**{cls.command_name(): subcommand.execute})
-
-    @classmethod
-    def configure(cls, parser: ap.ArgumentParser):
+    def configure(cls, parser: ap.ArgumentParser) -> None:
         subparsers = parser.add_subparsers(
             dest='subcommand_name', metavar='COMMAND'
         )
-        cls.configure_parser_and_subparsers(parser, subparsers)
+        for command_cls in cls.subcommands():
+            command_name = command_cls.name()
+            command_args = command_cls.parser_kwargs()
+            command_parser = subparsers.add_parser(command_name, **command_args)
+            command_cls.configure(command_parser)
+            command_parser.set_defaults(subcommand_class=command_cls)
+
+    def execute(self, command_args: ap.Namespace):
+        if command_args.subcommand_name and command_args.subcommand_class:
+            name = command_args.subcommand_name
+            command = command_args.subcommand_class()
+
+            command.execute(command_args)

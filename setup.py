@@ -14,8 +14,8 @@ setup(
             'doclib = doclib.cli:main'
         ],
         'doclib_commands': [
-            'project = doclib.cli.commands:Project'
-            # 'category = doclib.cli.commands:Category',
+            'project = doclib.cli.commands:Project',
+            'category = doclib.cli.commands:Category'
             # 'document = doclib.cli.commands:Document'
         ]
     },

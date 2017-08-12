@@ -14,7 +14,7 @@ class Manager:
         get list of all the projects in the library
         """
         project_paths = [
-            os.path.join(LIBDIR, name) for name in os.listdir(cls.LIBDIR)
+            os.path.join(cls.LIBDIR, name) for name in os.listdir(cls.LIBDIR)
                 if os.path.isdir(os.path.join(cls.LIBDIR, name))
         ]
         return [ProjectInfo.from_path(path) for path in project_paths]
@@ -56,7 +56,7 @@ class Manager:
         """
         project = cls.get_project(project_name)
         category_path = os.path.join(project.path, category_name)
-        if not os.path.exists(category_name):
+        if not os.path.exists(category_path):
             raise CategoryError("no such category: %s" % category_name)
         return CategoryInfo.from_path(category_path)
 
@@ -73,26 +73,28 @@ class Manager:
         return DocumentInfo.from_path(document_path)
 
     @classmethod
-    def add_project(cls, project: ProjectInfo):
+    def add_project(cls, project_name: str):
         """
         add a new project to the library
         """
-        project_path = os.path.join(cls.LIBDIR, project.name)
+        project_path = os.path.join(cls.LIBDIR, project_name)
         if os.path.exists(project_path):
-            raise ProjectError("project already exists: %s" % project.name)
-        os.mkdir(project_name)
+            raise ProjectError("project already exists: %s" % project_name)
+        os.mkdir(project_path)
+        return cls.get_project(project_name)
 
     @classmethod
-    def add_category(cls, project_name: str, category: CategoryInfo):
+    def add_category(cls, project_name: str, category_name: str):
         """
         add a new category to the library
         """
         project = cls.get_project(project_name)
         category_path =\
-            os.path.join(project.path, category.name)
+            os.path.join(project.path, category_name)
         if os.path.exists(category_path):
-            raise CategoryError("category already exists: %s" % category.name)
+            raise CategoryError("category already exists: %s" % category_name)
         os.mkdir(category_path)
+        return cls.get_category(project_name, category_name)
 
     @classmethod
     def add_document(cls, project_name: str, category_name: str,
