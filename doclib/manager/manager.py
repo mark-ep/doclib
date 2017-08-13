@@ -2,141 +2,129 @@ import os
 import shutil
 from typing import List
 
-from .models import ProjectInfo, CategoryInfo, DocumentInfo
-from .errors import ProjectError, CategoryError, DocumentError
+from doclib.db import DBConnection
+from doclib.const import DocumentMode
 
 class Manager:
     LIBDIR = os.path.expanduser("~/.doclib")
+    DBPATH = os.path.expanduser("library.db")
 
     @classmethod
-    def get_projects(cls) -> List[ProjectInfo]:
-        """
-        get list of all the projects in the library
-        """
-        project_paths = [
-            os.path.join(cls.LIBDIR, name) for name in os.listdir(cls.LIBDIR)
-                if os.path.isdir(os.path.join(cls.LIBDIR, name))
-        ]
-        return [ProjectInfo.from_path(path) for path in project_paths]
+    def get_projects(cls):
+        with DBConnection(cls.DBPATH) as db:
+            projects = db.get_projects()
+        return projects
 
     @classmethod
-    def get_categories(cls, project_name: str) -> List[CategoryInfo]:
-        """
-        get list of all the categories of a project
-        """
-        project = cls.get_project(project_name)
-        catpaths = [os.path.join(project.path, catname) for catname
-                        in project.get_categories()]
-        return [CategoryInfo.from_path(catpath) for catpath in catpaths]
-
-    @classmethod
-    def get_documents(cls, project_name: str, category_name: str) -> List[DocumentInfo]:
-        """
-        get list of all the documents in a category
-        """
-        category = cls.get_category(project_name, category_name)
-        docpaths = [os.path.join(category.path, docname) for docname
-                        in category.get_documents()]
-        return [DocumentInfo.from_path(docpath) for docpath in docpaths]
-
-    @classmethod
-    def get_project(cls, project_name: str) -> ProjectInfo:
+    def get_project(cls, project_name: str):
         """
         get a project
         """
+        with DBConnection(cls.DBPATH) as db:
+            project = db.get_project(project_name)
+        return project
+
+    @classmethod
+    def add_project(cls, project_name: str, desc: str=None):
+        with DBConnection(cls.DBPATH) as db:
+            db.add_project(project_name, desc)
         project_path = os.path.join(cls.LIBDIR, project_name)
         if not os.path.exists(project_path):
-            raise ProjectError("no such project: %s" % project_name)
-        return ProjectInfo.from_path(project_path)
+            os.mkdir(project_path)
 
     @classmethod
-    def get_category(cls, project_name: str, category_name: str) -> CategoryInfo:
-        """
-        get a category
-        """
-        project = cls.get_project(project_name)
-        category_path = os.path.join(project.path, category_name)
-        if not os.path.exists(category_path):
-            raise CategoryError("no such category: %s" % category_name)
-        return CategoryInfo.from_path(category_path)
+    def remove_project(cls, project_name: str, force: bool=False):
+        pass
 
     @classmethod
-    def get_document(cls, project_name: str, category_name: str,
-                     document_name: str) -> DocumentInfo:
-        """
-        get a document
-        """
-        category = cls.get_category(project_name, category_name)
-        document_path = os.path.join(category.path, document_name)
-        if not os.path.exists(document_path):
-            raise DocumentError("no such document: %s" % document_name)
-        return DocumentInfo.from_path(document_path)
+    def move_project(cls, project_name: str, new_name: str):
+        pass
 
     @classmethod
-    def add_project(cls, project_name: str):
-        """
-        add a new project to the library
-        """
-        project_path = os.path.join(cls.LIBDIR, project_name)
-        if os.path.exists(project_path):
-            raise ProjectError("project already exists: %s" % project_name)
-        os.mkdir(project_path)
-        return cls.get_project(project_name)
+    def copy_project(cls, project_name: str, new_name: str):
+        pass
+
+    # DOCUMENTS
 
     @classmethod
-    def add_category(cls, project_name: str, category_name: str):
-        """
-        add a new category to the library
-        """
-        project = cls.get_project(project_name)
-        category_path =\
-            os.path.join(project.path, category_name)
-        if os.path.exists(category_path):
-            raise CategoryError("category already exists: %s" % category_name)
-        os.mkdir(category_path)
-        return cls.get_category(project_name, category_name)
+    def get_documents(cls, project_name: str):
+        with DBConnection(cls.DBPATH) as db:
+            docs = db.get_documents(project_name)
+        return docs
 
     @classmethod
-    def add_document(cls, project_name: str, category_name: str,
-                     document: DocumentInfo, clobber: bool=False):
-        """
-        add a new document to the library
-        """
-        category = cls.get_category(project_name, category_name)
-        document_path =\
-            os.path.join(category.path, document.name)
-        if os.path.exists(document_path) and not clobber:
-            raise DocumentError("document already exists: %s" % document.name)
-        if not os.path.exists(document.path):
-            raise DocumentError("document does not exist: %s" % document.path)
-        shutil.copyfile(document.path, document_path)
+    def get_document(cls, project_name: str, document_name: str):
+        with DBConnection(cls.DBPATH) as db:
+            doc = db.get_document(project_name, document_name)
+        return doc
 
     @classmethod
-    def remove_project(cls, project_name: str, recursive: bool=False):
-        """
-        delete a project
-        """
-        project = cls.get_project(project_name)
-        if project.get_categories() and not recursive:
-            raise ProjectError("project is not empty: %s" % project_name)
+    def add_document(cls, project_name: str, document_name: str,
+                     document_path: str, mode: DocumentMode=DocumentMode.move,
+                     revision: str=None, latest: bool=True, #TODO: description?
+                     *tags: str):
+        # create document if needed
+        if mode == DocumentMode.copy:
+            basename = os.path.basename(path)
+            newpath = os.path.join(
+                cls.LIBDIR, project_name, document_name, basename
+            )
+            shutil.copyfile(path, newpath)
+            path = newpath
+        if mode == DocumentMode.move:
+            basename = os.path.basename(path)
+            newpath = os.path.join(
+                cls.LIBDIR, project_name, document_name, basename
+            )
+            shutil.copyfile(path, newpath) #TODO: move instead
+            path = newpath
+        with DBConnection(cls.DBPATH) as db:
+            db.add_revision(project_name, document_name, path, revision, latest)
+        if tags:
+            db.tag_document(project, document, tags)
+
+    @classmethod
+    def remove_document(cls, project_name: str, document_name: str,
+                        force: bool=False, revision: str=None):
         shutil.rmtree(project.path)
+        pass
 
     @classmethod
-    def remove_category(cls, project_name: str, category_name: str,
-                        recursive: bool=False):
-        """
-        delete a category
-        """
-        category = cls.get_category(project_name, category_name)
-        if category.get_documents() and not recursive:
-            raise CategoryError("category is not empty: %s" % category_name)
-        shutil.rmtree(category.path)
+    def move_document(cls, project_name: str, document_name: str,
+                        new_name: str=None, new_project: str=None):
+        pass
 
     @classmethod
-    def remove_document(cls, project_name: str, category_name: str,
-                        document_name: str):
-        """
-        delete a document
-        """
-        document = cls.get_document(project_name, category_name, document_name)
-        os.remove(document.path)
+    def copy_document(cls, project_name: str, document_name: str,
+                        new_name: str=None, new_project: str=None):
+        pass
+
+    @classmethod
+    def open_document(cls, project_name: str, document_name: str,
+                        revision: str=None):
+        pass
+
+    @classmethod
+    def tag_document(cls, project_name: str, document_name: str, *tags: str):
+        pass
+
+    @classmethod
+    def set_latest_revision(cls, project_name: str, document_name: str,
+                            revision: str):
+        pass
+
+    # tags
+
+    @classmethod
+    def list_tags(cls):
+        with DBConnection(cls.DBPATH) as db:
+            return db.get_tags()
+
+    @classmethod
+    def remove_tags(cls, *tags: str):
+        pass
+
+    @classmethod
+    def search_tags(cls, *tags: str):
+        with DBConnection(cls.DBPATH) as db:
+            return db.tag_search(*tags)

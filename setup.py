@@ -15,8 +15,9 @@ setup(
         ],
         'doclib_commands': [
             'project = doclib.cli.commands:Project',
-            'category = doclib.cli.commands:Category'
-            # 'document = doclib.cli.commands:Document'
+            'document = doclib.cli.commands:Document',
+            'tags = doclib.cli.commands:Tags',
+            'search = doclib.cli.commands:Search'
         ]
     },
     install_requires=[
